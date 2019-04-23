@@ -6,7 +6,7 @@ categories: iOS
 tags: [iOS, Swift]
 ---
 # Swift Runtime
-```c++
+```cpp
 Class swift::swift_getInitializedObjCClass(Class c) {
   // Used when we have class metadata and we want to ensure a class has been
   // initialized by the Objective-C runtime. We need to do this because the
