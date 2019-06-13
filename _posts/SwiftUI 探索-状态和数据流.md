@@ -1,0 +1,229 @@
+`SwiftUI`是`iOS13`新出的声明式UI框架，将会完全改变我们以前`命令式`操作UI的开发方式。
+### 可变状态
+###### @State
+与`React`和`Flutter`中的`State`类似，`React`和`Flutter`中需要显式调用`setState`方法。`SwiftUI` 中当修改`State`属性值时，会触发视图更新。
+```swift
+struct ContentView: View {
+@State private var text: String = "a"
+var body: some View {
+VStack {
+Text(text)
+Button(action: {
+self.text = "b"// 修改text会更新视图
+}) {
+Text("update-text")
+}
+}
+}
+}
+```
+- 当修改的`State`值没有在`body`中使用或者修改后的`State`值和上一次相同，并不会触发重新计算`body`。也就是说`State`修改时，会检测`State`被使用和检测值变更来决定要不要更新视图。
+- `State`用`class`属性。在触发`body`重新计算前会检查`State`值有没有改变，当修改类对象时，因为类对象并没有改变，所以并不会触发视图更新。如果想触发视图变更，可以在修改`State`时生成新的对象或者使用`BindableObject `。
+### 属性
+###### Property
+与`React`中的`Props`类似，用于父视图向子视图传递值。
+```swift
+struct PropertyView: View {
+let text: String// 当text改变时，会重新计算`body`。
+var body: some View {
+Text(text)
+}
+}
+struct ContentView: View {
+var body: some View {
+PropertyView(text: "a")
+}
+}
+```
+- 使用`let`变量。使用`var`变量修饰属性，在`body`方法里也不能修改，因为修改属性会创建新的结构体。
+- 属性能不能使用`class`？
+###### @Binding
+与`Property`功能类似，用于父视图向子视图传递可修改值。传入的`Binding`变量可以修改，修改`Binding`会触发父视图`State`改变重新计算`body`。可以实现反向数据流的功能，有点类似`MVVM`的双向绑定。
+```swift
+struct BindingView : View {
+@Binding var text: String // Binding
+var body: some View {
+VStack {
+Button(action: {
+self.text = "b"
+}) {
+Text("update-text")
+}
+}
+}
+}
+struct ContentView : View {
+@State private var text: String = "a" // State
+var body: some View {
+VStack {
+BindingView(text: $text)// State变量使用$可以获取Binding
+Text(text)
+}
+}
+}
+```
+###### @ObjectBinding
+主要用于父视图向子视图传递可修改的`class`属性。当`class`修改值时，可以更新视图。
+```swift
+class Model: BindableObject {
+var didChange = PassthroughSubject<Model, Never>()
+var text: String = "a" {
+didSet {
+didChange.send(self)
+}
+}
+}
+
+struct ObjectBindingView: View {
+@ObjectBinding var model: Model
+// let model: Model 不会触发更新
+var body: some View {
+return VStack {
+Text(model.text)
+Button(action: {
+self.model.text = "b"
+}) {
+Text("update-ObjectBindingView")
+}
+}
+}
+}
+struct ContentView : View {
+@State private var model = Model(text: "c")
+var body: some View {
+return VStack {
+Text(model.text)
+ObjectBindingView(model: model)
+}
+}
+}
+- 使用普通变量并不会触发视图更新操作。
+```
+###### @EnvironmentObject
+通过`Property`或者`Binding`的方式，我们只能显式的通过组件树逐层传递。
+```
+显式逐层传递的缺点：
+- 当组件树复杂的时候特别繁琐，修改起来也很麻烦。
+- 有些属性在视图树中间的层级不会使用到，只有底层会使用。会增加中间层级视图的复杂度。也可以避免中间的层级重复计算`body`触发视图更新。
+```
+为了避免层层传递属性，可以使用`Environment`变量。`Environment`属性可以在任意子视图获取并使用。
+```swift
+struct EnvironmentView1: View {
+var body: some View {
+return VStack {
+EnvironmentView2()
+EnvironmentView3()
+}
+}
+}
+struct EnvironmentView2: View {
+@EnvironmentObject var model: Model// EnvironmentObject
+var body: some View {
+Button(action: {
+self.model.change()
+}) {
+Text("update-Environment")
+}
+}
+}
+struct EnvironmentView3: View {
+@EnvironmentObject var model: Model// EnvironmentObject
+var body: some View {
+Text(model.text)
+}
+}
+struct ContentView: View {
+var body: some View {
+//EnvironmentObject需要使用environmentObject方法注入到组件树中
+EnvironmentView1().environmentObject(Model())
+}
+}
+```
+- 通过`environmentObject`方法注入对象到组件树中，子组件树中共享同一个对象并且可以监听变更。
+- `environmentObject`参数只有一个对象，没有传入key，暂时不清楚系统通过什么方式获取到正确的`environmentObject`对象。又或者想传入多个同类型的对象，用key获取不同的对象。
+### 数据流
+###### 父视图 -> 子视图向下传递
+- 不需要修改使用`Property`
+- 需要修改使用`@Binding`
+###### 父视图 -> 子视图跨层级向下传递
+- Environment
+###### 全局状态层管理
+- 应该是结合`Combine`框架根据模块功能领域分层进行管理。
+### 视图更新流程
+- 修改`State`触发视图更新，检测`State`是否被使用以及值是否被改变。
+- 重新计算`body`生成新的视图树，会重新创建所有子视图的`View`结构体。
+- 遍历所有子视图，判断`View`结构体与更新前是否一致。当不一致时，触发子视图更新，调用子视图`body`。
+##### Tips
+###### 关于 State
+```swift
+class Model: BindableObject {
+var didChange = PassthroughSubject<Model, Never>()
+var count: Int = 0 {
+didSet {
+didChange.send(self)
+}
+}
+init() {
+print("Model-init-\(count)")// 这里count始终为0
+}
+}
+struct Struct {
+private(set) var count = 0
+init() {
+print("Struct-\(count)")// 这里count始终为0
+}
+mutating func update() {
+print("update-\(count)")
+count += 1
+}
+}
+struct ChildView: View {
+@State private var model2 = Struct()
+@State private var model = Model2()
+@State private var count = 0
+var body: some View {
+return VStack {
+Text("\(model.count)")
+Text("\(model2.count)")
+Text("\(count)")
+Button(action: {// 修改 State
+self.model.count += 1
+self.count += 1
+self.model2.update()
+}) {
+Text("update")
+}
+}
+}
+}
+struct ContentView: View {
+@State private var count = 0
+var body: some View {
+return VStack {
+ChildView()
+Button(action: {
+self.count += 1
+}) {
+Text("update")
+}
+Text("\(count)")
+}
+}
+}
+```
+- 当`ContentView`更新时，会重新创建`ChildView`结构体。
+- `ChildView`中的`State`都会重新创建，`Struct`和`Model`初始化方法中，`count`一直为`0`，即使`ContentView`里`State`曾经修改过。但是下一次修改`State`值时，`State`会使用之前的值做运算。不太清楚这里是如何处理的，State虽然重新初始化了一次，似乎还是使用的之前的State。
+```
+1. 例如当点击Button时，会修改ChildView中model, model2中count+=1，当前count=1。
+2. 当ChildView重新创建时，model，model2初始化方法中，count=0。
+3. 当下一次点击Button修改count值时，count会在1的基础上+1，之后count=2。
+```
+###### 性能
+- 当视图发生变更时，由于`body`会经常重新计算，所以应该尽量避免在`body`中进行重复和耗时计算。
+- 视图变更时，视图组件`View`结构体会重新创建，所以应该避免在`init`方法中进行重复和耗时计算。（包括属性的重新生成）
+- 根据上面 `State`的特性，当`State`属性为结构体或类时，应避免在`init`方法中访问或修改属性。因为当State修改过后，在`init`方法中获取到的值不是正确的，修改值也会生效。
+<!--
+- 视图变更时，视图组件`View`结构体会重新创建。应该避免
+- `Property`
+//class对象禁止修改实例变量
+-->
