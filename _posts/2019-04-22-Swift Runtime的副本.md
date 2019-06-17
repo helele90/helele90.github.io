@@ -1,9 +1,9 @@
 ---
 layout: post
-title: "思维导图系列 - Objective-C"
+title: "思维导图 - Objective-C"
 date: 2019-04-22
 categories: iOS
-tags: [iOS, Objective-C, Xmind]
+tags: [iOS, Objective-C, 思维导图]
 ---
 ### Objective-C
 [![Objective-C]({{ '/resources/images/Objective-C.png' | prepend: site.baseurl }})]({{ '/resources/images/Objective-C.png' | prepend: site.baseurl }})
